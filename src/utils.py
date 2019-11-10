@@ -6,37 +6,6 @@ from tqdm.auto import tqdm
 from collections import Counter
 
 
-def clean_text(x, punct=None):
-    if punct is None:
-        punct = {
-            'sep'   : u'\u200b' + "/-'´′‘…—−–.",
-            'keep'  : "&",
-            'remove': '?!.,，"#$%\'()*+-/:;<=>@[\\]^_`{|}~“”’™•°'
-        }
-        
-    # x = x.lower()
-
-    for p in punct['sep']:
-        x = x.replace(p, " ")
-    for p in punct['keep']:
-        x = x.replace(p, f" {p} ")
-    for p in punct['remove']:
-        x = x.replace(p, "")
-
-    return x
-
-
-def build_vocab(df: pd.DataFrame, tokenize) -> Counter:
-    sentences = df.progress_apply(tokenize).values
-    vocab = Counter()
-
-    for sentence in tqdm(sentences):
-        for word in sentence:
-            vocab[word] += 1
-
-    return vocab
-
-
 def get_coefs(word, *arr):
     return word, np.asarray(arr, dtype='float32')
 
