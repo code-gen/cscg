@@ -1,9 +1,7 @@
 import os
 import numpy as np
-import pandas as pd
 import pickle
 from tqdm.auto import tqdm
-from collections import Counter
 
 
 def get_coefs(word, *arr):
@@ -23,18 +21,24 @@ def load_pt_glove(emb_file: str) -> dict:
     return emb
 
 
-def build_embedding_matrix(emb_dict, w_idx, len_voc):
+def build_embedding_matrix(emb_dict, w_idx, len_voc, init='zeros'):
+    assert init in ['zeros', 'normal']
+    
     all_embs = np.stack(list(emb_dict.values()))
     emb_words_list = list(emb_dict.keys())
     embed_size = all_embs.shape[1]
 
     n_words = min(len_voc, len(w_idx))
-    # emb_mean, emb_std = all_embs.mean(), all_embs.std()
-    # emb_matrix = np.random.normal(emb_mean, emb_std, (n_words, embed_size))
-    emb_matrix = np.zeros((n_words, embed_size))
+    
+    if init == 'normal':
+        emb_mean, emb_std = all_embs.mean(), all_embs.std()
+        emb_matrix = np.random.normal(emb_mean, emb_std, (n_words, embed_size))
+    if init == 'zeros':
+        emb_matrix = np.zeros((n_words, embed_size))
 
-    for word, wi in tqdm(w_idx.items(), total=len(w_idx.items())):
-        if wi >= len_voc: continue
+    for word, wi in w_idx.items():
+        if wi >= len_voc: 
+            continue
 
         emb_vector = emb_dict.get(word, None)
         if emb_vector is not None:
