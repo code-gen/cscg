@@ -60,6 +60,6 @@ class Django(Dataset):
     def __len__(self):
         assert len(self.X) == len(self.Y) == self.df.shape[0]
         return len(self.X)
-            
-    def raw_example(self, idx):
+           
+    def raw(self, idx):
         return {k: self.df.iloc[idx][k] for k in self.df.columns}

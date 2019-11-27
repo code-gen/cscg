@@ -1,7 +1,11 @@
 import os
-import numpy as np
 import pickle
+import numpy as np
 from tqdm.auto import tqdm
+
+
+def from_home(x):
+    return os.path.join(os.environ['HOME'], x)
 
 
 def get_coefs(word, *arr):
