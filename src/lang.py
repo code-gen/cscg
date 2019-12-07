@@ -1,10 +1,11 @@
 from collections import defaultdict, Counter
 
 import torch
+import numpy as np
 import pandas as pd
 import en_core_web_sm
 
-from utils import load_pt_glove, build_embedding_matrix
+from utils import load_pt_glove
 
 nlp = en_core_web_sm.load()
     
@@ -15,85 +16,110 @@ class Lang:
     def __init__(self, name):
         self.name = name
         
-        self.word2index = defaultdict(lambda: self.reserved_tokens.index('<unk>'))
-        self.index2word = defaultdict(lambda: '<unk>')
+        self.token2index = defaultdict(lambda: self.reserved_tokens.index('<unk>'))
+        self.index2token = defaultdict(lambda: '<unk>')
         
         for i, w in enumerate(self.reserved_tokens):
-            self.word2index[w] = i
-            self.index2word[i] = w
+            self.token2index[w] = i
+            self.index2token[i] = w
                                                   
-        self.word2count = Counter()
-        self.n_words    = len(self.reserved_tokens)
+        self.token2count = Counter()
+        self.n_tokens    = len(self.reserved_tokens)
         self.emb_matrix = None
-        
-        self.__tokenize = lambda s: [tok.text for tok in nlp.tokenizer(s)]
+        self.pad_idx = self.reserved_tokens.index('<pad>')
+ 
+
+    def __str__(self):
+        return f'Lang<{self.name}>'
+    
+    def __repr__(self):
+        return str(self)
     
     def __getitem__(self, item):
         if isinstance(item, str):
-            return {'index': self.word2index[item],
-                    'count': self.word2count[item]}
+            return {'index': self.token2index[item],
+                    'count': self.token2count[item]}
             
         if isinstance(item, int):
-            return {'word': self.index2word[item],
-                    'count': self.word2count[self.index2word[item]]}
+            return {'token': self.index2token[item],
+                    'count': self.token2count[self.index2token[item]]}
             
         return None
     
     def __len__(self):
-        n1 = len(self.word2index)
-        n2 = len(self.index2word)
-        n3 = len(self.word2count)
-        assert n1 == n2 == (n3 + len(self.reserved_tokens))
-        return n1
+        n1 = len(self.token2index)
+        n2 = len(self.index2token)
+        n3 = len(self.token2count)
+        assert n1 == n2 == (n3 + len(self.reserved_tokens)) == self.n_tokens
+        return self.n_tokens
     
-    def add_sentence(self, sentence, tokenize='default'):
-        if tokenize == 'default':
-            tokenize = self.__tokenize
+    def add_sentence(self, sentence, tokenize_mode):        
+        tokens = Preprocess.tokenize(Preprocess.clean_text(sentence), tokenize_mode)
+        
+        for tok in tokens:
+            self.add_token(tok)
             
-        for word in tokenize(Preprocess.clean_text(sentence)):
-            self.add_word(word)
-            
-    def add_word(self, word: str):
-        if word not in self.word2index:
-            self.word2index[word] = self.n_words
-            self.word2count[word] = 1
-            self.index2word[self.n_words] = word
-            self.n_words += 1
+    def add_token(self, tok: str):
+        if tok not in self.token2index:
+            self.token2index[tok] = self.n_tokens
+            self.token2count[tok] = 1
+            self.index2token[self.n_tokens] = tok
+            self.n_tokens += 1
         else:
-            self.word2count[word] += 1
+            self.token2count[tok] += 1
                     
     def normalize_vocab(self, min_freq):
-        items = list(self.word2count.items())
+        items = list(self.token2count.items())
         
-        for word, count in items:
+        for tok, count in items:
             if count >= min_freq:
                 continue
                 
-            i = self.word2index[word]    
-            self.word2count.pop(word, None)
-            self.word2index.pop(word, None)
-            self.index2word.pop(i, None)
-            self.n_words -= 1
+            i = self.token2index[tok]    
+            self.token2count.pop(tok, None)
+            self.token2index.pop(tok, None)
+            self.index2token.pop(i, None)
+            self.n_tokens -= 1
+            
+            
+    def __emb_from_token_idx(self, emb_dict, init='zeros'):
+        assert init in ['zeros', 'normal']
+    
+        all_embs = np.stack(list(emb_dict.values()))
+        embed_size = all_embs.shape[1]
+        n_tokens = min(self.n_tokens, len(self.token2index))
+
+        if init == 'normal':
+            emb_mean, emb_std = all_embs.mean(), all_embs.std()
+            emb_matrix = np.random.normal(emb_mean, emb_std, (n_tokens, embed_size))
+        if init == 'zeros':
+            emb_matrix = np.zeros((n_tokens, embed_size))
+
+        for tok, idx in self.token2index.items():
+            if idx >= self.n_tokens: 
+                continue
+
+            emb_vector = emb_dict.get(tok, None)
+            if emb_vector is not None:
+                emb_matrix[idx] = emb_vector
+        
+        return emb_matrix
+        
                   
-    def build_emb_matrix(self, emb_file: str):
-        # TODO: don't hardcode glove loader
-        emb_dict = load_pt_glove(emb_file)
-        self.emb_matrix = build_embedding_matrix(emb_dict, 
-                                                 w_idx=self.word2index,
-                                                 len_voc=self.n_words,
-                                                 init='zeros')
+    def build_emb_matrix(self, emb_file: str, init_mode='zeros'):
+        emb_dict = load_pt_glove(emb_file) # TODO: don't hardcode glove loader
+        self.emb_matrix = self.__emb_from_token_idx(emb_dict, init='zeros')
+        
           
-    def numericalize(self, sentence, pad_mode=None, maxlen=-1) -> ([str], [int]):
-        tokens = []
-        seq = self.__tokenize(Preprocess.clean_text(sentence))
+    def to_numeric(self, sentence, tokenize_mode, pad_mode=None, maxlen=-1) -> ([str], [int]):
+        tokens = Preprocess.tokenize(Preprocess.clean_text(sentence), tokenize_mode)
         
         if pad_mode is not None:
-            pad = ['<pad>'] * max(0, (maxlen - len(seq)))
-            if len(seq) > maxlen:
-                seq = seq[:maxlen]
-       
-        for word in seq:
-            tokens += [word if self.word2count[word] > 0 else '<unk>']
+            pad = ['<pad>'] * max(0, (maxlen - len(tokens)))
+            if len(tokens) > maxlen:
+                tokens = tokens[:maxlen]
+        
+        tokens = [tok if self.token2count[tok] > 0 else '<unk>' for tok in tokens]
         
         if pad_mode == 'pre':
             tokens = ['<s>', *pad, *tokens, '</s>']
@@ -102,14 +128,24 @@ class Lang:
         else:
             tokens = ['<s>', *tokens, '</s>']
             
-        nums = [0] * len(tokens)
-        for i in range(len(tokens)):
-            nums[i] = self.word2index[tokens[i]]
+        return [self.token2index[tok] for tok in tokens]
+    
+    
+    def to_tokens(self, nums):
+        if len(nums.shape) == 1:
+            nums = nums.unsqueeze(0)
+        
+        n, seq_len = nums.shape
             
-        return tokens, nums
+        tokens = []
+        for i in range(n):
+            tokens.append([self.index2token[int(idx.item())] for idx in nums[i]])
+            
+        return tokens
 
     
 class Preprocess:
+    
     @staticmethod
     def clean_text(x, punct=None):
         if punct is None:
@@ -127,3 +163,13 @@ class Preprocess:
             x = x.replace(p, "")
 
         return x
+    
+    @staticmethod
+    def tokenize(s, tokenize_mode):
+        if tokenize_mode == 'anno':
+            return [tok.text for tok in nlp.tokenizer(s)]
+        
+        if tokenize_mode == 'code':
+            return s.split()
+        
+        raise NotImplementedError(tokenize_mode)
