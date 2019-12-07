@@ -27,14 +27,9 @@ class Django(Dataset):
     def __repr__(self):
         return str(self)
     
-    def path_of(self, file) -> str:
-        __path = os.path.join(self.config.root_dir, file)
-        assert os.path.exists(__path), f'{file} is not part of the dataset!'
-        return __path
-    
     def __preprocess(self) -> None:
-        anno = [l.strip() for l in open(self.path_of('all.anno')).readlines()]
-        code = [l.strip() for l in open(self.path_of('all.code')).readlines()]
+        anno = [l.strip() for l in open(os.path.join(self.config.root_dir, 'all.anno')).readlines()]
+        code = [l.strip() for l in open(os.path.join(self.config.root_dir, 'all.code')).readlines()]
         self.df = pd.DataFrame({'anno': anno, 'code': code})
         
         # construct anno language
