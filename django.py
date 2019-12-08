@@ -80,30 +80,36 @@ class Django(Dataset):
         return {k: self.df.iloc[idx][k] for k in self.df.columns}
     
     
-    def compute_lm_probs(self, lm_paths):         
+    def compute_lm_probs(self, lm_paths):   
+        """
+        Compute LM probabilities for each unpadded, numericalized anno/code example.
+        """
+        
         self.lm_probs = {'anno': [], 'code': []}
         
-        for kind in self.lm_probs:  
-            lm_model = LMProb(lm_paths[kind]['model'], lm_paths[kind]['dict'])
-            lines = open(lm_paths[kind]['corpus'], 'rt').readlines()
+        pad_idx = {
+            'anno': self.anno_lang.reserved_tokens.index('<pad>'),
+            'code': self.code_lang.reserved_tokens.index('<pad>')
+        } 
+        
+        for kind in self.lm_probs:
+            lm = LMProb(lm_paths[kind])
+            p = pad_idx[kind]
             
-            for line in lines:
-                sent = line.strip().split()
-                self.lm_probs[kind] += [lm_model.get_prob(sent)]
+            for vec in getattr(self, kind):
+                self.lm_probs[kind] += [lm.get_prob(vec[vec != pad_idx[kind]])]
                 
         return self.lm_probs
     
     
-    def train_test_valid_split(self, test_p: float, valid_p: float, seed=None, to_dir=None):
+    def train_test_valid_split(self, test_p: float, valid_p: float, seed=None):
         """
-        Generate train/test/valid splits and optionally dump to a directory.
-        Useful for language models.
+        Generate train/test/valid splits.
         
         :param test_p : percentage of all data for test
         :param valid_p: percentage of all data for train
         """
-        x = self.df['anno'].values
-        y = self.df['code'].values
+        x, y = self.anno, self.code
         
         sz = 1 - test_p - valid_p
         x_train, x_test_valid, y_train, y_test_valid = train_test_split(x, y, train_size=sz, random_state=seed)
@@ -115,20 +121,8 @@ class Django(Dataset):
         assert sum(map(len, [y_train, y_test, y_valid])) == len(y)
         
         splits = {
-            'train': (x_train, y_train),
-            'test' : (x_test, y_test),
-            'valid': (x_valid, y_valid)
+            'anno' : {'train': x_train, 'test': x_test, 'valid': x_valid},
+            'code' : {'train': y_train, 'test': y_test, 'valid': y_valid},
         }
-        
-        # dump to files
-        if to_dir is not None:
-            os.makedirs(os.path.join(to_dir, 'anno'), exist_ok=True)
-            os.makedirs(os.path.join(to_dir, 'code'), exist_ok=True)
-
-            for k in splits:
-                for i, t in enumerate(['anno', 'code']):
-                    with open(os.path.join(to_dir, f'{t}/{k}.txt'), 'wt') as fp:
-                        for ex in splits[k][i]:
-                            fp.write(f'{ex}\n')
         
         return splits

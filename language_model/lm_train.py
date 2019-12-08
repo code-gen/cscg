@@ -6,7 +6,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-import data
 import models
 
 
@@ -57,11 +56,10 @@ def get_batch(bptt, source, i):
     return data, target
 
 
-def evaluate(CFG, model, corpus, criterion, data_source):
+def evaluate(CFG, model, num_tokens, criterion, data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
-    total_loss = 0.
-    ntokens = len(corpus.dictionary)
+    total_loss = 0.0
     
     if CFG.model != 'Transformer':
         hidden = model.init_hidden(bsz=1)
@@ -74,18 +72,17 @@ def evaluate(CFG, model, corpus, criterion, data_source):
             else:
                 output, hidden = model(data, hidden)
                 hidden = repackage_hidden(hidden)
-            output_flat = output.view(-1, ntokens)
+            output_flat = output.view(-1, num_tokens)
             total_loss += len(data) * criterion(output_flat, targets).item()
     
     return total_loss / len(data_source)
 
 
-def train(CFG, model, corpus, train_data, criterion, lr):
+def train_epoch(CFG, model, num_tokens, train_data, criterion, lr):
     # Turn on training mode which enables dropout.
     model.train()
     total_loss = 0.
     start_time = time.time()
-    ntokens = len(corpus.dictionary)
     
     if CFG.model != 'Transformer':
         hidden = model.init_hidden(CFG.batch_size)
@@ -100,7 +97,7 @@ def train(CFG, model, corpus, train_data, criterion, lr):
         else:
             hidden = repackage_hidden(hidden)
             output, hidden = model(data, hidden)
-        loss = criterion(output.view(-1, ntokens), targets)
+        loss = criterion(output.view(-1, num_tokens), targets)
         loss.backward()
 
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
@@ -119,31 +116,21 @@ def train(CFG, model, corpus, train_data, criterion, lr):
             start_time = time.time()
 
 
-def train_language_model(CFG):
+def train_language_model(CFG, train_nums, test_nums, valid_nums, num_tokens):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     if CFG.seed is not None:
         torch.manual_seed(CFG.seed)
         print(f'using seed {CFG.seed}')
-        
-    corpus = data.Corpus(CFG.corpus_dir)
-
-    # dump dictionary; to be used when computing lm prob later
-    __dir = os.path.dirname(os.path.abspath(CFG.save_path))
-    with open(os.path.join(__dir, f'lm-{CFG.dataset}-dict-{CFG.kind}.pkl'), 'wb') as fp:
-        pickle.dump(corpus.dictionary, fp)
-        print(f'dumped dictionary to {fp.name}')
+            
+    train_data = batchify(train_nums, CFG.batch_size, device=device)
+    val_data   = batchify(valid_nums, bsz=1, device=device)
+    test_data  = batchify(test_nums, bsz=1, device=device)
     
-    train_data = batchify(corpus.train, CFG.batch_size, device=device)
-    val_data   = batchify(corpus.valid, bsz=1, device=device)
-    test_data  = batchify(corpus.test, bsz=1, device=device)
-    
-    ntokens = len(corpus.dictionary)
-
     if CFG.model == 'Transformer':
-        model = models.TransformerModel(ntokens, CFG.emb_size, CFG.nhead, CFG.n_hid, CFG.n_layers, CFG.dropout_p).to(device)
+        model = models.TransformerModel(num_tokens, CFG.emb_size, CFG.nhead, CFG.n_hid, CFG.n_layers, CFG.dropout_p).to(device)
     else:
-        model = models.RNNModel(CFG.model, ntokens, CFG.emb_size, CFG.n_hid, CFG.n_layers, CFG.dropout_p, CFG.tied).to(device)
+        model = models.RNNModel(CFG.model, num_tokens, CFG.emb_size, CFG.n_hid, CFG.n_layers, CFG.dropout_p, CFG.tied).to(device)
 
     criterion = nn.CrossEntropyLoss()
     
@@ -154,8 +141,8 @@ def train_language_model(CFG):
     try:
         for epoch in range(1, CFG.epochs+1):
             epoch_start_time = time.time()
-            train(CFG, model, corpus, train_data, criterion, lr)
-            val_loss = evaluate(CFG, model, corpus, criterion, val_data)
+            train_epoch(CFG, model, num_tokens, train_data, criterion, lr)
+            val_loss = evaluate(CFG, model, num_tokens, criterion, val_data)
 
             print('-' * 89)
             print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | valid ppl {:8.2f}'.format(
@@ -185,7 +172,7 @@ def train_language_model(CFG):
             model.rnn.flatten_parameters()
 
     # Run on test data.
-    test_loss = evaluate(CFG, model, corpus, criterion, test_data)
+    test_loss = evaluate(CFG, model, num_tokens, criterion, test_data)
     print('=' * 89)
     print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(test_loss, np.exp(test_loss)))
     print('=' * 89)
