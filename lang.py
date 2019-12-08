@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import en_core_web_sm
 
-from utils import load_pt_glove
+from loaders import load_pt_glove
 
 nlp = en_core_web_sm.load()
     

@@ -2,10 +2,6 @@ import os
 import pickle
 
 
-def from_home(x):
-    return os.path.join(os.environ['HOME'], x)
-
-
 def get_coefs(word, *arr):
     return word, np.asarray(arr, dtype='float32')
 

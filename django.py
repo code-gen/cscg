@@ -7,6 +7,8 @@ from argparse import Namespace
 import torch
 from torch.utils.data import Dataset
 
+from sklearn.model_selection import train_test_split
+
 from lang import Lang
 
 
@@ -66,3 +68,42 @@ class Django(Dataset):
            
     def raw(self, idx):
         return {k: self.df.iloc[idx][k] for k in self.df.columns}
+    
+    def train_test_valid_split(self, test_p: float, valid_p: float, to_dir=None):
+        """
+        Generate train/test/valid splits and optionally dump to a directory.
+        Useful for language models.
+        
+        :param test_p : percentage of all data for test
+        :param valid_p: percentage of all data for train
+        """
+        x = self.df['anno'].values
+        y = self.df['code'].values
+        
+        sz = 1 - test_p - valid_p
+        x_train, x_test_valid, y_train, y_test_valid = train_test_split(x, y, train_size=sz)
+        
+        sz = test_p / (test_p + valid_p)
+        x_test, x_valid, y_test, y_valid = train_test_split(x_test_valid, y_test_valid, train_size=sz)
+        
+        assert sum(map(len, [x_train, x_test, x_valid])) == len(x)
+        assert sum(map(len, [y_train, y_test, y_valid])) == len(y)
+        
+        splits = {
+            'train': (x_train, y_train),
+            'test' : (x_test, y_test),
+            'valid': (x_valid, y_valid)
+        }
+        
+        if to_dir is None:
+            return splits
+        
+        # dump to file
+        os.makedirs(os.path.join(to_dir, 'anno'))
+        os.makedirs(os.path.join(to_dir, 'code'))
+        
+        for k in splits:
+            for i, t in enumerate(['anno', 'code']):
+                with open(os.path.join(to_dir, f'{t}/{k}.txt'), 'wt') as fp:
+                    for ex in splits[k][i]:
+                        fp.write(f'{ex}\n')
