@@ -10,6 +10,7 @@ from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
 
 from lang import Lang
+from language_model.lm_prob import LMProb
 
 
 class Django(Dataset):
@@ -28,6 +29,7 @@ class Django(Dataset):
     
     def __repr__(self):
         return str(self)
+    
     
     def __preprocess(self) -> None:
         anno = [l.strip() for l in open(os.path.join(self.config.root_dir, 'all.anno')).readlines()]
@@ -57,19 +59,42 @@ class Django(Dataset):
         for s in code:
             nums = self.code_lang.to_numeric(s, pad_mode='post', tokenize_mode='code', maxlen=self.config.code_seq_maxlen)
             self.code += [torch.tensor(nums)]
-             
+    
+    
     def __getitem__(self, idx):
         assert 0 <= idx < len(self)
-        return self.anno[idx], self.code[idx]
-            
+        
+        # if lm probabilites have been computed
+        if hasattr(self, 'lm_probs'):
+            return self.anno[idx], self.code[idx], self.lm_probs['anno'][idx], self.lm_probs['code'][idx]
+        else:
+            return self.anno[idx], self.code[idx]
+    
+    
     def __len__(self):
         assert len(self.anno) == len(self.code) == self.df.shape[0]
         return len(self.anno)
-           
+    
+    
     def raw(self, idx):
         return {k: self.df.iloc[idx][k] for k in self.df.columns}
     
-    def train_test_valid_split(self, test_p: float, valid_p: float, to_dir=None):
+    
+    def compute_lm_probs(self, lm_paths):         
+        self.lm_probs = {'anno': [], 'code': []}
+        
+        for kind in self.lm_probs:  
+            lm_model = LMProb(lm_paths[kind]['model'], lm_paths[kind]['dict'])
+            lines = open(lm_paths[kind]['corpus'], 'rt').readlines()
+            
+            for line in lines:
+                sent = line.strip().split()
+                self.lm_probs[kind] += [lm_model.get_prob(sent)]
+                
+        return self.lm_probs
+    
+    
+    def train_test_valid_split(self, test_p: float, valid_p: float, seed=None, to_dir=None):
         """
         Generate train/test/valid splits and optionally dump to a directory.
         Useful for language models.
@@ -81,10 +106,10 @@ class Django(Dataset):
         y = self.df['code'].values
         
         sz = 1 - test_p - valid_p
-        x_train, x_test_valid, y_train, y_test_valid = train_test_split(x, y, train_size=sz)
+        x_train, x_test_valid, y_train, y_test_valid = train_test_split(x, y, train_size=sz, random_state=seed)
         
         sz = test_p / (test_p + valid_p)
-        x_test, x_valid, y_test, y_valid = train_test_split(x_test_valid, y_test_valid, train_size=sz)
+        x_test, x_valid, y_test, y_valid = train_test_split(x_test_valid, y_test_valid, train_size=sz, random_state=seed)
         
         assert sum(map(len, [x_train, x_test, x_valid])) == len(x)
         assert sum(map(len, [y_train, y_test, y_valid])) == len(y)
@@ -95,15 +120,15 @@ class Django(Dataset):
             'valid': (x_valid, y_valid)
         }
         
-        if to_dir is None:
-            return splits
+        # dump to files
+        if to_dir is not None:
+            os.makedirs(os.path.join(to_dir, 'anno'), exist_ok=True)
+            os.makedirs(os.path.join(to_dir, 'code'), exist_ok=True)
+
+            for k in splits:
+                for i, t in enumerate(['anno', 'code']):
+                    with open(os.path.join(to_dir, f'{t}/{k}.txt'), 'wt') as fp:
+                        for ex in splits[k][i]:
+                            fp.write(f'{ex}\n')
         
-        # dump to file
-        os.makedirs(os.path.join(to_dir, 'anno'))
-        os.makedirs(os.path.join(to_dir, 'code'))
-        
-        for k in splits:
-            for i, t in enumerate(['anno', 'code']):
-                with open(os.path.join(to_dir, f'{t}/{k}.txt'), 'wt') as fp:
-                    for ex in splits[k][i]:
-                        fp.write(f'{ex}\n')
+        return splits
