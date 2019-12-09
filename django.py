@@ -88,15 +88,15 @@ class Django(Dataset):
         self.lm_probs = {'anno': [], 'code': []}
         
         pad_idx = {
-            'anno': self.anno_lang.reserved_tokens.index('<pad>'),
-            'code': self.code_lang.reserved_tokens.index('<pad>')
+            'anno': self.anno_lang.token2index['<pad>'],
+            'code': self.code_lang.token2index['<pad>']
         } 
         
         for kind in self.lm_probs:
             lm = LMProb(lm_paths[kind])
             p = pad_idx[kind]
             
-            for vec in getattr(self, kind):
+            for vec in tqdm(getattr(self, kind), total=len(self), desc=f'P({kind})'):
                 self.lm_probs[kind] += [lm.get_prob(vec[vec != pad_idx[kind]])]
                 
         return self.lm_probs
