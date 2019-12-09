@@ -144,20 +144,26 @@ def train_language_model(CFG, train_nums, test_nums, valid_nums, num_tokens):
             train_epoch(epoch, CFG, model, num_tokens, train_data, criterion, lr)
             val_loss = evaluate(CFG, model, num_tokens, criterion, val_data)
 
-            print('-' * 89)
-            print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:8.5f} | valid ppl {:10.5f}'.format(
-                epoch, (time.time() - epoch_start_time), val_loss, np.exp(val_loss)))
-            print('-' * 89)
-
+            _saved = False
+            
             # Save the model if the validation loss is the best we've seen so far.
             if not best_val_loss or val_loss < best_val_loss:
                 with open(CFG.save_path, 'wb') as f:
                     torch.save(model, f)
                 best_val_loss = val_loss
-                print(f'saved best model, val_loss = {best_val_loss}')
+                _saved = True
             else:
                 # Anneal the learning rate if no improvement has been seen in the validation dataset.
                 lr = 0.9 * lr
+                
+            print('-' * 120)
+            _s = '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:8.5f} | valid ppl {:10.5f}'.format(
+                epoch, (time.time() - epoch_start_time), val_loss, np.exp(val_loss))
+            if _saved:
+                _s += ' | * saved best model'
+            print(_s)
+            print('-' * 120)
+            
     except KeyboardInterrupt:
         print('-' * 89)
         print('Exiting from training early')
