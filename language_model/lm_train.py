@@ -78,7 +78,7 @@ def evaluate(CFG, model, num_tokens, criterion, data_source):
     return total_loss / len(data_source)
 
 
-def train_epoch(CFG, model, num_tokens, train_data, criterion, lr):
+def train_epoch(epoch, CFG, model, num_tokens, train_data, criterion, lr):
     # Turn on training mode which enables dropout.
     model.train()
     total_loss = 0.
@@ -110,8 +110,8 @@ def train_epoch(CFG, model, num_tokens, train_data, criterion, lr):
         if batch % CFG.log_interval == 0 and batch > 0:
             cur_loss = total_loss / CFG.log_interval
             elapsed = time.time() - start_time
-            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | loss {:5.2f} | ppl {:8.2f}'.format(
-                epoch, batch, len(train_data) // CFG.bptt, lr, elapsed * 1000 / CFG.log_interval, cur_loss, torch.exp(cur_loss)))
+            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | loss {:8.5f} | ppl {:10.5f}'.format(
+                epoch, batch, len(train_data) // CFG.bptt, lr, elapsed * 1000 / CFG.log_interval, cur_loss, np.exp(cur_loss)))
             total_loss = 0
             start_time = time.time()
 
@@ -141,11 +141,11 @@ def train_language_model(CFG, train_nums, test_nums, valid_nums, num_tokens):
     try:
         for epoch in range(1, CFG.epochs+1):
             epoch_start_time = time.time()
-            train_epoch(CFG, model, num_tokens, train_data, criterion, lr)
+            train_epoch(epoch, CFG, model, num_tokens, train_data, criterion, lr)
             val_loss = evaluate(CFG, model, num_tokens, criterion, val_data)
 
             print('-' * 89)
-            print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | valid ppl {:8.2f}'.format(
+            print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:8.5f} | valid ppl {:10.5f}'.format(
                 epoch, (time.time() - epoch_start_time), val_loss, np.exp(val_loss)))
             print('-' * 89)
 
