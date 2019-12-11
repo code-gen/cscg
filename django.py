@@ -40,24 +40,29 @@ class Django(Dataset):
         for s in anno:
             self.anno_lang.add_sentence(s, tokenize_mode='anno')
             
-        self.anno_lang.normalize_vocab(min_freq=self.config.anno_min_freq)
         self.anno_lang.build_emb_matrix(emb_file=self.config.emb_file)
         
         # construct code language
         for s in code:
             self.code_lang.add_sentence(s, tokenize_mode='code')
-      
-        self.code_lang.normalize_vocab(min_freq=self.config.code_min_freq)
         
         # build examples
         self.anno, self.code = [], []
         
         for s in anno:
-            nums = self.anno_lang.to_numeric(s, pad_mode='post', tokenize_mode='anno', maxlen=self.config.anno_seq_maxlen)
+            nums = self.anno_lang.to_numeric(s,
+                                             tokenize_mode='anno', 
+                                             min_freq=self.config.anno_min_freq,
+                                             pad_mode='post',
+                                             max_len=self.config.anno_seq_maxlen)
             self.anno += [torch.tensor(nums)]
         
         for s in code:
-            nums = self.code_lang.to_numeric(s, pad_mode='post', tokenize_mode='code', maxlen=self.config.code_seq_maxlen)
+            nums = self.code_lang.to_numeric(s, 
+                                             tokenize_mode='code', 
+                                             min_freq=self.config.code_min_freq,
+                                             pad_mode='post', 
+                                             max_len=self.config.code_seq_maxlen)
             self.code += [torch.tensor(nums)]
     
     

@@ -1,3 +1,4 @@
+import re
 from collections import defaultdict, Counter
 
 import torch
@@ -54,7 +55,8 @@ class Lang:
         return self.n_tokens
     
     def add_sentence(self, sentence, tokenize_mode):        
-        tokens = Preprocess.tokenize(Preprocess.clean_text(sentence), tokenize_mode)
+        pp = Preprocess(tokenize_mode)
+        tokens = pp.tokenize(pp.clean_text(sentence))
         
         for tok in tokens:
             self.add_token(tok)
@@ -67,20 +69,7 @@ class Lang:
             self.n_tokens += 1
         else:
             self.token2count[tok] += 1
-                    
-    def normalize_vocab(self, min_freq):
-        items = list(self.token2count.items())
-        
-        for tok, count in items:
-            if count >= min_freq:
-                continue
-                
-            i = self.token2index[tok]    
-            self.token2count.pop(tok, None)
-            self.token2index.pop(tok, None)
-            self.index2token.pop(i, None)
-            self.n_tokens -= 1
-            
+
             
     def __emb_from_token_idx(self, emb_dict, init='zeros'):
         assert init in ['zeros', 'normal']
@@ -111,15 +100,16 @@ class Lang:
         self.emb_matrix = self.__emb_from_token_idx(emb_dict, init='zeros')
         
           
-    def to_numeric(self, sentence, tokenize_mode, pad_mode=None, maxlen=-1) -> ([str], [int]):
-        tokens = Preprocess.tokenize(Preprocess.clean_text(sentence), tokenize_mode)
+    def to_numeric(self, sentence, tokenize_mode, min_freq=1, pad_mode=None, max_len=-1):
+        pp = Preprocess(tokenize_mode)
+        
+        tokens = pp.tokenize(pp.clean_text(sentence))
+        tokens = [tok if self.token2count[tok] >= min_freq else '<unk>' for tok in tokens]
         
         if pad_mode is not None:
-            pad = ['<pad>'] * max(0, (maxlen - len(tokens)))
-            if len(tokens) > maxlen:
-                tokens = tokens[:maxlen]
-        
-        tokens = [tok if self.token2count[tok] > 0 else '<unk>' for tok in tokens]
+            pad = ['<pad>'] * max(0, (max_len - len(tokens) - 2)) # -2 for <s> and </s>
+            if len(tokens) > max_len:
+                tokens = tokens[:max_len]
         
         if pad_mode == 'pre':
             tokens = ['<s>', *pad, *tokens, '</s>']
@@ -144,32 +134,31 @@ class Lang:
         return tokens
 
     
-class Preprocess:
+class Preprocess:    
+    def __init__(self, mode):
+        assert mode in ['anno', 'code']
+        self.mode = mode
     
-    @staticmethod
-    def clean_text(x, punct=None):
-        if punct is None:
-            punct = {
-                'sep'   : u'\u200b' + '‘…—−–.',
-                'keep'  : "&",
-                'remove': '?!，`“”’™•°'
-            }
-
-        for p in punct['sep']:
-            x = x.replace(p, " ")
-        for p in punct['keep']:
-            x = x.replace(p, f" {p} ")
-        for p in punct['remove']:
-            x = x.replace(p, "")
-
+    def clean_text(self, x):        
+        x = re.sub(r'[‘…—−–]', ' ', x)
+        x = re.sub(r'[?，`“”’™•°]', '', x)
+        
+        if self.mode == 'anno':
+            x = re.sub(r'[,:;]', '', x)
+            x = re.sub(r'([\+\-\*/=(){}%^&])', r' \1 ', x)
+            x = re.sub(r'\.+$', r'', x)
+        
+        if self.mode == 'code':
+            # TODO: x = re.sub(r'(\+=|\-=|\*=|/=|==|\*\*|//)', r' \1 ', x)
+            x = re.sub(r'([\+\-\*/,:;=(){}%^&])', r' \1 ', x)
+        
+        x = re.sub(r'[ ]+', ' ', x)
+        x = x.strip()
         return x
-    
-    @staticmethod
-    def tokenize(s, tokenize_mode):
-        if tokenize_mode == 'anno':
-            return [tok.text for tok in nlp.tokenizer(s)]
         
-        if tokenize_mode == 'code':
-            return s.split()
+    def tokenize(self, x):        
+        if self.mode == 'anno':
+            return [tok.text for tok in nlp.tokenizer(x)]
         
-        raise NotImplementedError(tokenize_mode)
+        if self.mode == 'code':
+            return x.split()
