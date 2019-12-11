@@ -1,6 +1,11 @@
 import re
 from collections import defaultdict, Counter
 
+# python tokenizer
+import tokenize as py_tokenize
+import token as py_token
+from io import BytesIO
+
 import torch
 import numpy as np
 import pandas as pd
@@ -56,7 +61,7 @@ class Lang:
     
     def add_sentence(self, sentence, tokenize_mode):        
         pp = Preprocess(tokenize_mode)
-        tokens = pp.tokenize(pp.clean_text(sentence))
+        tokens = pp.tokenize(pp.clean(sentence))
         
         for tok in tokens:
             self.add_token(tok)
@@ -103,13 +108,14 @@ class Lang:
     def to_numeric(self, sentence, tokenize_mode, min_freq=1, pad_mode=None, max_len=-1):
         pp = Preprocess(tokenize_mode)
         
-        tokens = pp.tokenize(pp.clean_text(sentence))
+        tokens = pp.tokenize(pp.clean(sentence))
         tokens = [tok if self.token2count[tok] >= min_freq else '<unk>' for tok in tokens]
         
         if pad_mode is not None:
-            pad = ['<pad>'] * max(0, (max_len - len(tokens) - 2)) # -2 for <s> and </s>
-            if len(tokens) > max_len:
-                tokens = tokens[:max_len]
+            m = max_len - 2 # -2 for <s> and </s>
+            pad = ['<pad>'] * max(0, (m - len(tokens)))
+            if len(tokens) > m:
+                tokens = tokens[:m]
         
         if pad_mode == 'pre':
             tokens = ['<s>', *pad, *tokens, '</s>']
@@ -138,19 +144,24 @@ class Preprocess:
     def __init__(self, mode):
         assert mode in ['anno', 'code']
         self.mode = mode
+        
+    def tokenize_python(self, snippet: str):
+        toks = py_tokenize.tokenize(BytesIO(snippet.strip().encode('utf-8')).readline)
+        predicate = lambda t: py_token.tok_name[t.type] not in ['ENCODING', 'NEWLINE', 'ENDMARKER', 'ERRORTOKEN']
+        return [t.string for t in toks if predicate(t)]
     
-    def clean_text(self, x):        
+    def clean(self, x):        
         x = re.sub(r'[‘…—−–]', ' ', x)
         x = re.sub(r'[?，`“”’™•°]', '', x)
         
         if self.mode == 'anno':
             x = re.sub(r'[,:;]', '', x)
-            x = re.sub(r'([\+\-\*/=(){}%^&])', r' \1 ', x)
+            x = re.sub(r'([\+\-\*/=(){}%^&\.])', r' \1 ', x)
             x = re.sub(r'\.+$', r'', x)
         
         if self.mode == 'code':
-            # TODO: x = re.sub(r'(\+=|\-=|\*=|/=|==|\*\*|//)', r' \1 ', x)
-            x = re.sub(r'([\+\-\*/,:;=(){}%^&])', r' \1 ', x)
+            # x = re.sub(r'([\+\-\*/,:;=(){}%^&])', r' \1 ', x)
+            x = ' '.join(self.tokenize_python(x))
         
         x = re.sub(r'[ ]+', ' ', x)
         x = x.strip()
@@ -158,7 +169,9 @@ class Preprocess:
         
     def tokenize(self, x):        
         if self.mode == 'anno':
-            return [tok.text for tok in nlp.tokenizer(x)]
+            # TODO: something smarter?
+            # return [tok.text for tok in nlp.tokenizer(x)]
+            return x.split()
         
         if self.mode == 'code':
             return x.split()
