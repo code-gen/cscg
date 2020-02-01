@@ -66,9 +66,7 @@ class StandardDataset(Dataset):
             self.code += [torch.tensor(nums)]
     
     
-    def __getitem__(self, idx):
-        assert 0 <= idx < len(self)
-        
+    def __getitem__(self, idx):        
         # if lm probabilites have been computed
         if hasattr(self, 'lm_probs'):
             return self.anno[idx], self.code[idx], self.lm_probs['anno'][idx], self.lm_probs['code'][idx]
@@ -83,6 +81,15 @@ class StandardDataset(Dataset):
     
     def raw(self, idx):
         return {k: self.df.iloc[idx][k] for k in self.df.columns}
+    
+    
+    def shuffle(self):
+        r = np.random.permutation(len(self))
+        self.anno = self.anno[r]
+        self.code = self.code[r]
+        if hasattr(self, 'lm_probs'):
+            self.lm_probs['anno'] = self.lm_probs['anno'][r]
+            self.lm_probs['code'] = self.lm_probs['code'][r]
     
     
     def compute_lm_probs(self, lm_paths):   
