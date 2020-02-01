@@ -107,7 +107,7 @@ def train_epoch(epoch, CFG, model, num_tokens, train_data, criterion, lr):
 
         total_loss += loss.item()
 
-        if batch % CFG.log_interval == 0 and batch > 0:
+        if epoch % 10 and batch % CFG.log_interval == 0 and batch > 0:
             cur_loss = total_loss / CFG.log_interval
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | loss {:8.5f} | ppl {:10.5f}'.format(
@@ -118,6 +118,7 @@ def train_epoch(epoch, CFG, model, num_tokens, train_data, criterion, lr):
 
 def train_language_model(CFG, train_nums, test_nums, valid_nums, num_tokens):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f'Using device: {device}')
     
     if CFG.seed is not None:
         torch.manual_seed(CFG.seed)

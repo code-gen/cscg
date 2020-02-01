@@ -13,19 +13,19 @@ from lang import Lang
 from language_model.lm_prob import LMProb
 
 
-class Django(Dataset):
+class StandardDataset(Dataset):
     def __init__(self, config: Namespace):
-        super(Django, self).__init__()
-        
+        super(StandardDataset, self).__init__()
+
         self.config = config
-        
+
         self.anno_lang = Lang('anno')
         self.code_lang = Lang('code')
         
         self.__preprocess()
     
     def __str__(self):
-        return 'Dataset<Django>'
+        return f'Dataset<{os.path.basename(self.config.root_dir)}>'
     
     def __repr__(self):
         return str(self)

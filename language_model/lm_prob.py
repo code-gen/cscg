@@ -1,7 +1,9 @@
+import numpy as np
 import torch
+import torch.nn.functional as F
 
 
-class LMProb():
+class LMProb:
     def __init__(self, model_path):        
         self.model = torch.load(open(model_path, 'rb'), map_location={'cuda:0': 'cpu'})
         self.model = self.model.cpu()
@@ -16,15 +18,18 @@ class LMProb():
             for i in range(1, len(nums)):
                 output, hidden = self.model(inp, hidden)
                 
-                word_weights = output.squeeze().data.double().exp()
-                prob = word_weights[nums[i]] / word_weights.sum()
+                #word_weights = output.squeeze().data.double().exp()
+                #prob = word_weights[nums[i]] / word_weights.sum()
+                probs = F.softmax(output.squeeze(), dim=-1)
+                prob = probs[nums[i]]
                 
-                log_probs.append(torch.log(prob))
+                # append current log prob
+                log_probs += [torch.log(prob)]
                 inp.data.fill_(int(nums[i]))
 
             if verbose:
                 for i in range(len(log_probs)):
-                    print('{:>24s} => {:4d},\tlogP(w|s)={:8.4f}'.format(pad_words[i+1], nums[i+1], log_probs[i]))
-                print('\n  => sum_prob = {:.4f}'.format(sum(log_probs)))
+                    print(f'{nums[i+1]:4d}: P(w|s) = {np.exp(log_probs[i]):8.4f} | logP(w|s) = {log_probs[i]:8.4f}')
+                print(f'=> sum_prob = {sum(log_probs):.4f}')
 
         return sum(log_probs) / len(log_probs)
