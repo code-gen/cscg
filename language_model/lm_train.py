@@ -107,7 +107,7 @@ def train_epoch(epoch, CFG, model, num_tokens, train_data, criterion, lr):
 
         total_loss += loss.item()
 
-        if epoch % 10 and batch % CFG.log_interval == 0 and batch > 0:
+        if epoch % 20 == 0 and batch % CFG.log_interval == 0 and batch > 0:
             cur_loss = total_loss / CFG.log_interval
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | loss {:8.5f} | ppl {:10.5f}'.format(
@@ -157,13 +157,14 @@ def train_language_model(CFG, train_nums, test_nums, valid_nums, num_tokens):
                 # Anneal the learning rate if no improvement has been seen in the validation dataset.
                 lr = 0.9 * lr
                 
-            print('-' * 120)
-            _s = '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:8.5f} | valid ppl {:10.5f}'.format(
-                epoch, (time.time() - epoch_start_time), val_loss, np.exp(val_loss))
-            if _saved:
-                _s += ' | * saved best model'
-            print(_s)
-            print('-' * 120)
+            if epoch % 20 == 0:
+                print('-' * 120)
+                _s = '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:8.5f} | valid ppl {:10.5f}'.format(
+                    epoch, (time.time() - epoch_start_time), val_loss, np.exp(val_loss))
+                if _saved:
+                    _s += ' | * saved best model'
+                print(_s)
+                print('-' * 120)
             
     except KeyboardInterrupt:
         print('-' * 89)

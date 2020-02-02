@@ -14,7 +14,7 @@ from language_model.lm_prob import LMProb
 
 
 class StandardDataset(Dataset):
-    def __init__(self, config: Namespace):
+    def __init__(self, config: Namespace, shuffle_at_init=False, seed=None):
         super(StandardDataset, self).__init__()
 
         self.config = config
@@ -22,7 +22,7 @@ class StandardDataset(Dataset):
         self.anno_lang = Lang('anno')
         self.code_lang = Lang('code')
         
-        self.__preprocess()
+        self.__preprocess(shuffle_at_init, seed)
     
     def __str__(self):
         return f'Dataset<{os.path.basename(self.config.root_dir)}>'
@@ -31,9 +31,17 @@ class StandardDataset(Dataset):
         return str(self)
     
     
-    def __preprocess(self) -> None:
-        anno = [l.strip() for l in open(os.path.join(self.config.root_dir, 'all.anno')).readlines()]
-        code = [l.strip() for l in open(os.path.join(self.config.root_dir, 'all.code')).readlines()]
+    def __preprocess(self, shuffle, seed) -> None:
+        anno = np.array([l.strip() for l in open(os.path.join(self.config.root_dir, 'all.anno')).readlines()])
+        code = np.array([l.strip() for l in open(os.path.join(self.config.root_dir, 'all.code')).readlines()])
+        assert anno.shape == code.shape
+        
+        if shuffle:
+            np.random.seed(seed)
+            ridx = np.random.permutation(len(anno))
+            anno = anno[ridx]
+            code = code[ridx]
+        
         self.df = pd.DataFrame({'anno': anno, 'code': code})
         
         # construct anno language
@@ -64,6 +72,10 @@ class StandardDataset(Dataset):
                                              pad_mode='post', 
                                              max_len=self.config.code_seq_maxlen)
             self.code += [torch.tensor(nums)]
+            
+        # construct uniform tensor
+        self.anno = torch.stack(self.anno)
+        self.code = torch.stack(self.code)
     
     
     def __getitem__(self, idx):        
@@ -110,6 +122,8 @@ class StandardDataset(Dataset):
             
             for vec in tqdm(getattr(self, kind), total=len(self), desc=f'P({kind})'):
                 self.lm_probs[kind] += [lm.get_prob(vec[vec != pad_idx[kind]])]
+                
+            self.lm_probs[kind] = torch.stack(self.lm_probs[kind])
                 
         return self.lm_probs
     
