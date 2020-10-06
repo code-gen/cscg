@@ -2,6 +2,8 @@
 
 Ad-hoc implementation of the CS/CG model proposed by [Wei et al.](https://arxiv.org/abs/1910.05923)
 
+[![render](https://img.shields.io/badge/render-nbviewer-orange)](https://nbviewer.jupyter.org/github/code-gen/cscg/tree/master/)
+
 ### Getting started
 
 - Each dataset must be defined as a sub-class of `torch.utils.data.Dataset`, with methods for
