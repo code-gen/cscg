@@ -1,10 +1,10 @@
 # Code Generation as a Dual Task of Code Summarization
 
-Ad-hoc implementation of the CS/CG model proposed by [Wei et al.](https://arxiv.org/abs/1910.05923)
-
 [![render](https://img.shields.io/badge/render-nbviewer-orange)](https://nbviewer.jupyter.org/github/code-gen/cscg/tree/master/)
 
-### Getting started
+Ad-hoc implementation of the CS/CG model proposed by [Wei et al.](https://arxiv.org/abs/1910.05923)
+
+## Getting started
 
 - Each dataset must be defined as a sub-class of `torch.utils.data.Dataset`, with methods for
   - preprocessing and vocab builder (text -> vocab look-up indices)
@@ -22,7 +22,7 @@ Ad-hoc implementation of the CS/CG model proposed by [Wei et al.](https://arxiv.
 - Finally, using these models, compute `P(x)` for each `x` (anno/code tensor).
 
 
-### Reference
+## Reference
 ```
 @article{wei2019code,
   title={Code Generation as a Dual Task of Code Summarization},
