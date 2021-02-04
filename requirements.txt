@@ -1,0 +1,8 @@
+bagoftools
+en_core_web_sm
+numpy
+pandas
+scikit_learn
+tensorboard
+torch
+tqdm
