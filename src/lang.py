@@ -15,7 +15,8 @@ class Lang:
     def __init__(self, name):
         self.name = name
 
-        self.token2index = defaultdict(lambda: self.reserved_tokens.index('<unk>'))
+        self.token2index = defaultdict(
+            lambda: self.reserved_tokens.index('<unk>'))
         self.index2token = defaultdict(lambda: '<unk>')
 
         for i, w in enumerate(self.reserved_tokens):
@@ -23,10 +24,9 @@ class Lang:
             self.index2token[i] = w
 
         self.token2count = Counter()
-        self.n_tokens    = len(self.reserved_tokens)
+        self.n_tokens = len(self.reserved_tokens)
         self.emb_matrix = None
         self.pad_idx = self.reserved_tokens.index('<pad>')
-
 
     def __str__(self):
         return f'Lang<{self.name}>'
@@ -68,7 +68,6 @@ class Lang:
         else:
             self.token2count[tok] += 1
 
-
     def __emb_from_token_idx(self, emb_dict, init='zeros'):
         assert init in ['zeros', 'normal']
 
@@ -78,7 +77,8 @@ class Lang:
 
         if init == 'normal':
             emb_mean, emb_std = all_embs.mean(), all_embs.std()
-            emb_matrix = np.random.normal(emb_mean, emb_std, (n_tokens, embed_size))
+            emb_matrix = np.random.normal(
+                emb_mean, emb_std, (n_tokens, embed_size))
         if init == 'zeros':
             emb_matrix = np.zeros((n_tokens, embed_size))
 
@@ -92,20 +92,19 @@ class Lang:
 
         return emb_matrix
 
-
     def build_emb_matrix(self, emb_file: str, init_mode='zeros'):
-        emb_dict = load_pt_glove(emb_file) # TODO: don't hardcode glove loader
+        emb_dict = load_pt_glove(emb_file)  # TODO: don't hardcode glove loader
         self.emb_matrix = self.__emb_from_token_idx(emb_dict, init='zeros')
-
 
     def to_numeric(self, sentence, tokenize_mode, min_freq=1, pad_mode=None, max_len=-1):
         pp = Preprocess(tokenize_mode)
 
         tokens = pp.tokenize(pp.clean(sentence))
-        tokens = [tok if self.token2count[tok] >= min_freq else '<unk>' for tok in tokens]
+        tokens = [tok if self.token2count[tok] >=
+                  min_freq else '<unk>' for tok in tokens]
 
         if pad_mode is not None:
-            m = max_len - 2 # -2 for <s> and </s>
+            m = max_len - 2  # -2 for <s> and </s>
             pad = ['<pad>'] * max(0, (m - len(tokens)))
             if len(tokens) > m:
                 tokens = tokens[:m]
@@ -119,7 +118,6 @@ class Lang:
 
         return [self.token2index[tok] for tok in tokens]
 
-
     def to_tokens(self, nums):
         if len(nums.shape) == 1:
             nums = nums.unsqueeze(0)
@@ -128,7 +126,8 @@ class Lang:
 
         tokens = []
         for i in range(n):
-            tokens.append([self.index2token[int(idx.item())] for idx in nums[i]])
+            tokens.append([self.index2token[int(idx.item())]
+                           for idx in nums[i]])
 
         return tokens
 
@@ -139,8 +138,11 @@ class Preprocess:
         self.mode = mode
 
     def tokenize_python(self, snippet: str):
-        toks = py_tokenize.tokenize(BytesIO(snippet.strip().encode('utf-8')).readline)
-        predicate = lambda t: py_token.tok_name[t.type] not in ['ENCODING', 'NEWLINE', 'ENDMARKER', 'ERRORTOKEN']
+        toks = py_tokenize.tokenize(
+            BytesIO(snippet.strip().encode('utf-8')).readline)
+
+        def predicate(t): return py_token.tok_name[t.type] not in [
+            'ENCODING', 'NEWLINE', 'ENDMARKER', 'ERRORTOKEN']
         return [t.string for t in toks if predicate(t)]
 
     def clean(self, x):

@@ -29,10 +29,11 @@ class StandardDataset(Dataset):
     def __repr__(self):
         return str(self)
 
-
     def __preprocess(self, shuffle, seed) -> None:
-        anno = np.array([l.strip() for l in open(os.path.join(self.config.root_dir, 'all.anno')).readlines()])
-        code = np.array([l.strip() for l in open(os.path.join(self.config.root_dir, 'all.code')).readlines()])
+        anno = np.array([l.strip() for l in open(os.path.join(
+            self.config.root_dir, 'all.anno')).readlines()])
+        code = np.array([l.strip() for l in open(os.path.join(
+            self.config.root_dir, 'all.code')).readlines()])
         assert anno.shape == code.shape
 
         if shuffle:
@@ -76,7 +77,6 @@ class StandardDataset(Dataset):
         self.anno = torch.stack(self.anno)
         self.code = torch.stack(self.code)
 
-
     def __getitem__(self, idx):
         # if lm probabilites have been computed
         if hasattr(self, 'lm_probs'):
@@ -84,15 +84,12 @@ class StandardDataset(Dataset):
         else:
             return self.anno[idx], self.code[idx]
 
-
     def __len__(self):
         assert len(self.anno) == len(self.code) == self.df.shape[0]
         return len(self.anno)
 
-
     def raw(self, idx):
         return {k: self.df.iloc[idx][k] for k in self.df.columns}
-
 
     def shuffle(self):
         r = np.random.permutation(len(self))
@@ -101,7 +98,6 @@ class StandardDataset(Dataset):
         if hasattr(self, 'lm_probs'):
             self.lm_probs['anno'] = self.lm_probs['anno'][r]
             self.lm_probs['code'] = self.lm_probs['code'][r]
-
 
     def compute_lm_probs(self, lm_paths):
         """
@@ -126,7 +122,6 @@ class StandardDataset(Dataset):
 
         return self.lm_probs
 
-
     def train_test_valid_split(self, test_p: float, valid_p: float, seed=None):
         """
         Generate train/test/valid splits.
@@ -137,17 +132,19 @@ class StandardDataset(Dataset):
         x, y = self.anno, self.code
 
         sz = 1 - test_p - valid_p
-        x_train, x_test_valid, y_train, y_test_valid = train_test_split(x, y, train_size=sz, random_state=seed)
+        x_train, x_test_valid, y_train, y_test_valid = train_test_split(
+            x, y, train_size=sz, random_state=seed)
 
         sz = test_p / (test_p + valid_p)
-        x_test, x_valid, y_test, y_valid = train_test_split(x_test_valid, y_test_valid, train_size=sz, random_state=seed)
+        x_test, x_valid, y_test, y_valid = train_test_split(
+            x_test_valid, y_test_valid, train_size=sz, random_state=seed)
 
         assert sum(map(len, [x_train, x_test, x_valid])) == len(x)
         assert sum(map(len, [y_train, y_test, y_valid])) == len(y)
 
         splits = {
-            'anno' : {'train': x_train, 'test': x_test, 'valid': x_valid},
-            'code' : {'train': y_train, 'test': y_test, 'valid': y_valid},
+            'anno': {'train': x_train, 'test': x_test, 'valid': x_valid},
+            'code': {'train': y_train, 'test': y_test, 'valid': y_valid},
         }
 
         return splits
